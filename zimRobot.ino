@@ -14,8 +14,13 @@
 #define L293N_IN3 10
 #define L293N_IN4 11
 
-long prevMillis = 0;
-long interval = 3000;
+#define DISTANCE_THRESHOLD 20
+
+long prevMillis_env = 0;
+long interval_env = 2500;
+
+long prevMillis_dist = 0;
+long interval_dist = 1000;
 
 int value = 0;
 float voltage = 0;
@@ -26,6 +31,10 @@ int distance = 0;
 boolean BTConnect = false;
 char inChar;
 String inString;
+
+// Obstacle detected sound
+int obstacleDetectedNotes[] = {NOTE_D5, NOTE_E6};
+int obstacleDetectedNoteDurations[] = {8, 12};
 
 // For connect/disconnect tones
 int btConnect[] = {NOTE_G5, NOTE_C6};
@@ -60,6 +69,37 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
+  // Sensors Reporting if interval is reached
+  unsigned long curMillis = millis();
+  if (curMillis - prevMillis_env > interval_env){
+    prevMillis_env = curMillis;
+    // Temperature
+    value = analogRead(A0);
+    voltage = value * 0.00488;
+    temp = voltage * 100;
+    //Serial.print("TEMP:");
+    //Serial.println(temp);
+    BTSerial.print("TEMP:");
+    BTSerial.println(temp);
+  
+    // Light
+    value = analogRead(A1);
+    light = value;
+    //Serial.print("LIGHT:");
+    //Serial.println(light);
+    BTSerial.print("LIGHT:");
+    BTSerial.println(light);
+  }
+  if (curMillis - prevMillis_dist > interval_dist){
+    prevMillis_dist = curMillis;
+    // Distance (Front) - Ultrasonic
+    distance = front_HC.dist();
+    //Serial.print("DIST:");
+    //Serial.println(distance);
+    BTSerial.print("DIST:");
+    BTSerial.println(distance);
+  }
+  
   // If there is incoming data
   if (BTSerial.available() > 0){
     // If a connection is made
@@ -74,7 +114,7 @@ void loop() {
       inChar = BTSerial.read();
       inString = inString + inChar;
     }
-    Serial.println(inString);
+    //Serial.println(inString);
 
     if (inString == "#b=0#") {
       robotStop();
@@ -88,12 +128,18 @@ void loop() {
       robotBreak();
       BTSerial.println("Robot Braking...");
     }
-    else if (inString == "#b=1#") {
-      robotForward(200);
-      BTSerial.println("Robot Move Forward...");
+    else if (inString == "#b=1#") {        
+      if (distance < DISTANCE_THRESHOLD){
+          robotStop();
+          BTSerial.println("Robot encountered obstacle...");
+      }
+      else{
+        robotForward(150);
+        BTSerial.println("Robot Move Forward...");
+      }
     }
     else if (inString == "#b=2#") {
-      robotReverse(200);
+      robotReverse(150);
       BTSerial.println("Robot Move Backward...");
     }
     else if (inString == "#b=3#") {
@@ -107,40 +153,11 @@ void loop() {
     else if (inString.startsWith("+DISC")) {
       BTConnect = false;
       delay(1000);
-      while (BTSerial.available()) {
+      while (BTSerial.available() > 0) {
         BTSerial.read();
       }
       playMelody(btDisconnect, btDisconnectNoteDurations, 2);
     }
-  }
-
-  // Sensors Reporting if interval is reached
-  unsigned long curMillis = millis();
-  if (curMillis - prevMillis > interval){
-    prevMillis = curMillis;
-    // Temperature
-    value = analogRead(A0);
-    voltage = value * 0.00488;
-    temp = voltage * 100;
-    Serial.print("TEMP:");
-    Serial.println(temp);
-    BTSerial.print("TEMP:");
-    BTSerial.println(temp);
-  
-    // Light
-    value = analogRead(A1);
-    light = value;
-    Serial.print("LIGHT:");
-    Serial.println(light);
-    BTSerial.print("LIGHT:");
-    BTSerial.println(light);
-  
-    // Distance (Front) - Ultrasonic
-    distance = front_HC.dist();
-    Serial.print("DIST:");
-    Serial.println(distance);
-    BTSerial.print("DIST:");
-    BTSerial.println(distance); 
   }
 }
 
@@ -156,7 +173,6 @@ void playMelody(int *melody, int *noteDurations, int notesLength)
     noTone(PIEZO);
   }
 }
-
 
 void robotStop()
 {
