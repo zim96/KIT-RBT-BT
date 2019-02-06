@@ -17,10 +17,11 @@
 #define DISTANCE_THRESHOLD 20
 
 long prevMillis_env = 0;
-long interval_env = 2500;
+long interval_env = 5000;
 
 long prevMillis_dist = 0;
 long interval_dist = 1000;
+boolean obstacle = false;
 
 int value = 0;
 float voltage = 0;
@@ -98,6 +99,14 @@ void loop() {
     //Serial.println(distance);
     BTSerial.print("DIST:");
     BTSerial.println(distance);
+
+    // Check if there is obstacle
+    if (distance < DISTANCE_THRESHOLD){
+      obstacle = true;
+    }
+    else{
+      obstacle = false;
+    }
   }
   
   // If there is incoming data
@@ -128,10 +137,10 @@ void loop() {
       robotBreak();
       BTSerial.println("Robot Braking...");
     }
-    else if (inString == "#b=1#") {        
-      if (distance < DISTANCE_THRESHOLD){
-          robotStop();
-          BTSerial.println("Robot encountered obstacle...");
+    else if (inString == "#b=1#") {
+      if (obstacle){
+        robotStop();
+        BTSerial.println("Robot encountered obstacle...");
       }
       else{
         robotForward(150);
